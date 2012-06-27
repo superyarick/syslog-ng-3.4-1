@@ -80,6 +80,7 @@ struct _LogWriter
   MainLoopIOWorkerJob io_job;
   GStaticMutex suppress_lock;
   MlBatchedTimer suppress_timer;
+  MlBatchedTimer mark_timer;
   gboolean work_result;
   gint pollable_state;
   LogProto *proto, *pending_proto;
@@ -305,9 +306,11 @@ log_writer_update_fd_callbacks(LogWriter *self, GIOCondition cond)
     }
 }
 
-void
+static void
 log_writer_arm_suspend_timer(LogWriter *self, void (*handler)(void *), gint timeout_msec)
 {
+  main_loop_assert_main_thread();
+
   if (iv_timer_registered(&self->suspend_timer))
     iv_timer_unregister(&self->suspend_timer);
   iv_validate_now();
@@ -599,12 +602,60 @@ log_writer_is_msg_suppressed(LogWriter *self, LogMessage *lm)
   return FALSE;
 }
 
+static void
+log_writer_arm_mark_timer(LogWriter *self)
+{
+  ml_batched_timer_update(&self->mark_timer, self->options->mark_freq);
+}
+
+/* this is the callback function that gets called when the MARK timeout
+ * elapsed. It runs in the main thread.
+ */
+static void
+log_writer_mark_timeout(void *cookie)
+{
+  LogWriter *self = (LogWriter *)cookie;
+  LogPathOptions path_options = LOG_PATH_OPTIONS_INIT;
+  gchar hostname[256];
+  gsize hostname_len = sizeof(hostname);
+  LogMessage *msg;
+
+  main_loop_assert_main_thread();
+
+  msg = log_msg_new_mark();
+  /* timeout: there was no new message on the writer or it is in periodical mode */
+  resolve_sockaddr(hostname, &hostname_len, msg->saddr, self->options->use_dns, self->options->use_fqdn, self->options->use_dns_cache, self->options->normalize_hostnames);
+
+  log_msg_set_value(msg, LM_V_HOST, hostname, strlen(hostname));
+
+  /* set the current time in the message stamp */
+  msg->timestamps[LM_TS_STAMP] = msg->timestamps[LM_TS_RECVD];
+  log_queue_push_tail(self->queue, msg, &path_options);
+
+  log_writer_arm_mark_timer(self);
+}
+
+/*
+ * NOTE: start the mark timer if needed (e.g. the mark-mode requires it).
+ * Schedules a function call in the main thread to do the actual setup.
+ */
+static void
+log_writer_start_mark_timer(LogWriter *self)
+{
+  gint mark_mode = self->options->mark_mode;
+  if ((mark_mode == MM_DST_IDLE || mark_mode == MM_HOST_IDLE || mark_mode == MM_PERIODICAL) && self->options->mark_freq > 0)
+    {
+      log_writer_arm_mark_timer(self);
+    }
+}
+
 /* NOTE: runs in the reader thread */
 static void
 log_writer_queue(LogPipe *s, LogMessage *lm, const LogPathOptions *path_options, gpointer user_data)
 {
   LogWriter *self = (LogWriter *) s;
   LogPathOptions local_options;
+  gint mark_mode = self->options->mark_mode;
 
   if (!path_options->flow_control_requested &&
       (self->suspended || !(self->flags & LW_SOFT_FLOW_CONTROL)))
@@ -619,6 +670,20 @@ log_writer_queue(LogPipe *s, LogMessage *lm, const LogPathOptions *path_options,
     {
       log_msg_drop(lm, path_options);
       return;
+    }
+
+  if (mark_mode != MM_INTERNAL && (lm->flags & LF_INTERNAL) && (lm->flags & LF_MARK))
+    {
+      /* skip the internal MARK messages */
+      log_msg_drop(lm, path_options);
+      return;
+    }
+
+  if (mark_mode == MM_DST_IDLE || (mark_mode == MM_HOST_IDLE && (lm->flags & LF_LOCAL)))
+    {
+      /* in case of periodical marks the timer has already been started in log_writer_init()
+         we must not start a new one in order to avoid duplicate marks */
+      log_writer_start_mark_timer(self);
     }
 
   stats_counter_inc(self->processed_messages);
@@ -1003,6 +1068,12 @@ log_writer_init_watches(LogWriter *self)
   self->suppress_timer.ref_cookie = (gpointer (*)(gpointer)) log_pipe_ref;
   self->suppress_timer.unref_cookie = (void (*)(gpointer)) log_pipe_unref;
 
+  ml_batched_timer_init(&self->mark_timer);
+  self->mark_timer.cookie = self;
+  self->mark_timer.handler = (void (*)(void *)) log_writer_mark_timeout;
+  self->mark_timer.ref_cookie = (gpointer (*)(gpointer)) log_pipe_ref;
+  self->mark_timer.unref_cookie = (void (*)(gpointer)) log_pipe_unref;
+
   IV_EVENT_INIT(&self->queue_filled);
   self->queue_filled.cookie = self;
   self->queue_filled.handler = log_writer_queue_filled;
@@ -1041,6 +1112,7 @@ log_writer_init(LogPipe *s)
       self->proto = NULL;
       log_writer_reopen(&self->super, proto);
     }
+  log_writer_start_mark_timer(self);
   return TRUE;
 }
 
@@ -1061,7 +1133,7 @@ log_writer_deinit(LogPipe *s)
   iv_event_unregister(&self->queue_filled);
 
   ml_batched_timer_unregister(&self->suppress_timer);
-
+  ml_batched_timer_unregister(&self->mark_timer);
   log_queue_set_counters(self->queue, NULL, NULL);
 
   stats_lock();
@@ -1090,6 +1162,7 @@ log_writer_free(LogPipe *s)
     log_msg_unref(self->last_msg);
   g_free(self->stats_id);
   g_free(self->stats_instance);
+  ml_batched_timer_deinit(&self->mark_timer);
   ml_batched_timer_deinit(&self->suppress_timer);
   g_static_mutex_free(&self->suppress_lock);
   g_static_mutex_free(&self->pending_proto_lock);
@@ -1259,6 +1332,8 @@ log_writer_options_defaults(LogWriterOptions *options)
   options->time_reopen = -1;
   options->suppress = -1;
   options->padding = 0;
+  options->mark_mode = MM_GLOBAL;
+  options->mark_freq = -1;
 }
 
 void 
@@ -1274,6 +1349,11 @@ log_writer_options_set_template_escape(LogWriterOptions *options, gboolean enabl
     }
 }
 
+void
+log_writer_options_set_mark_mode(LogWriterOptions *options, gchar *mark_mode)
+{
+  options->mark_mode = cfg_lookup_mark_mode(mark_mode);
+}
 
 /*
  * NOTE: options_init and options_destroy are a bit weird, because their
@@ -1340,6 +1420,22 @@ log_writer_options_init(LogWriterOptions *options, GlobalConfig *cfg, guint32 op
   options->proto_template = log_template_ref(cfg->proto_template);
   if (cfg->threaded)
     options->options |= LWO_THREADED;
+  /* per-destination MARK messages */
+  if (options->mark_mode == MM_GLOBAL)
+    {
+      /* get the global option */
+      options->mark_mode = cfg->mark_mode;
+     }
+  if (options->mark_freq == -1)
+    {
+      /* not initialized, use the global mark freq */
+      options->mark_freq = cfg->mark_freq;
+    }
+
+  options->use_dns = cfg->use_dns;
+  options->use_fqdn = cfg->use_fqdn;
+  options->use_dns_cache = cfg->use_dns_cache;
+  options->normalize_hostnames = cfg->normalize_hostnames;
 }
 
 void
