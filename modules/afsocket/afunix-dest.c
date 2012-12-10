@@ -39,7 +39,7 @@ afunix_dd_apply_transport(AFSocketDestDriver *s)
 {
   AFUnixDestDriver *self = (AFUnixDestDriver *) s;
 
-  if (self->super.sock_type == SOCK_DGRAM)
+  if (self->super.socket_options->type == SOCK_DGRAM)
     afsocket_dd_set_transport(&self->super.super.super, "unix-dgram");
   else
     afsocket_dd_set_transport(&self->super.super.super, "unix-stream");
@@ -64,17 +64,17 @@ afunix_dd_free(LogPipe *s)
   afsocket_dd_free(s);
 }
 
-LogDriver *
+AFUnixDestDriver *
 afunix_dd_new(gint sock_type, gchar *filename)
 {
   AFUnixDestDriver *self = g_new0(AFUnixDestDriver, 1);
 
-  afsocket_dd_init_instance(&self->super, &self->sock_options, AF_UNIX, sock_type, "localhost");
+  afsocket_dd_init_instance(&self->super, &self->unix_socket_options, AF_UNIX, sock_type, "localhost");
   self->super.super.super.super.free_fn = afunix_dd_free;
   self->super.apply_transport = afunix_dd_apply_transport;
   self->super.writer_options.mark_mode = MM_NONE;
 
   self->filename = g_strdup(filename);
 
-  return &self->super.super.super;
+  return self;
 }

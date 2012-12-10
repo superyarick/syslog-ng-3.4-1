@@ -69,6 +69,15 @@ afsocket_grammar_set_source_driver(AFSocketSourceDriver *sd)
 }
 
 static void
+afsocket_grammar_set_dest_driver(AFSocketDestDriver *dd)
+{
+  last_driver = &dd->super.super;
+
+  last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
+  last_sock_options = ((AFSocketDestDriver *) last_driver)->socket_options;
+}
+
+static void
 afunix_grammar_set_source_driver(AFUnixSourceDriver *sd)
 {
   afsocket_grammar_set_source_driver(&sd->super);
@@ -79,6 +88,18 @@ static void
 afinet_grammar_set_source_driver(AFInetSourceDriver *sd)
 {
   afsocket_grammar_set_source_driver(&sd->super);
+}
+
+static void
+afunix_grammar_set_dest_driver(AFUnixDestDriver *dd)
+{
+  afsocket_grammar_set_dest_driver(&dd->super);
+}
+
+static void
+afinet_grammar_set_dest_driver(AFInetDestDriver *dd)
+{
+  afsocket_grammar_set_dest_driver(&dd->super);
 }
 
 }
@@ -401,10 +422,10 @@ dest_afunix
 dest_afunix_dgram_params
 	: string
 	  {
-	    last_driver = *instance = afunix_dd_new(SOCK_DGRAM, $1);
+	    AFUnixDestDriver *d = afunix_dd_new(SOCK_DGRAM, $1);
+
+            afunix_grammar_set_dest_driver(d);
 	    free($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFUnixDestDriver *) last_driver)->sock_options;
 	  }
 	  dest_afunix_options			{ $$ = last_driver; }
 	;
@@ -412,10 +433,10 @@ dest_afunix_dgram_params
 dest_afunix_stream_params
 	: string
 	  {
-	    last_driver = *instance = afunix_dd_new(SOCK_STREAM, $1);
+	    AFUnixDestDriver *d = afunix_dd_new(SOCK_STREAM, $1);
+
+            afunix_grammar_set_dest_driver(d);
 	    free($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFUnixDestDriver *) last_driver)->sock_options;
 	  }
 	  dest_afunix_options			{ $$ = last_driver; }
 	;
@@ -442,10 +463,10 @@ dest_afinet
 dest_afinet_udp_params
 	: string
 	  {
-	    last_driver = *instance = afinet_dd_new(last_addr_family, SOCK_DGRAM, $1);
+	    AFInetDestDriver *d = afinet_dd_new(last_addr_family, SOCK_DGRAM, $1);
+
+            afinet_grammar_set_dest_driver(d);
 	    free($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFInetDestDriver *) last_driver)->sock_options.super;
 	  }
 	  dest_afinet_udp_options		{ $$ = last_driver; }
 	;
@@ -475,10 +496,10 @@ dest_afinet_udp_option
 dest_afinet_tcp_params
 	: string
 	  {
-	    last_driver = *instance = afinet_dd_new(last_addr_family, SOCK_STREAM, $1);
+	    AFInetDestDriver *d = afinet_dd_new(last_addr_family, SOCK_STREAM, $1);
+
+            afinet_grammar_set_dest_driver(d);
 	    free($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFInetDestDriver *) last_driver)->sock_options.super;
 	  }
 	  dest_afinet_tcp_options		{ $$ = last_driver; }
 	;
@@ -515,9 +536,9 @@ dest_afsyslog
 dest_afsyslog_params
         : string
           {
-            last_driver = *instance = afsyslog_dd_new($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFInetDestDriver *) last_driver)->sock_options.super;
+            AFInetDestDriver *d = afsyslog_dd_new($1);
+
+            afinet_grammar_set_dest_driver(d);
 	    free($1);
 	  }
 	  dest_afsyslog_options			{ $$ = last_driver; }
@@ -541,9 +562,9 @@ dest_afnetwork
 dest_afnetwork_params
         : string
           {
-            last_driver = *instance = afnetwork_dd_new($1);
-	    last_writer_options = &((AFSocketDestDriver *) last_driver)->writer_options;
-	    last_sock_options = &((AFInetDestDriver *) last_driver)->sock_options.super;
+            AFInetDestDriver *d = afnetwork_dd_new($1);
+
+            afinet_grammar_set_dest_driver(d);
 	    free($1);
 	  }
 	  dest_afnetwork_options			{ $$ = last_driver; }

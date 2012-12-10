@@ -84,7 +84,7 @@ afinet_dd_set_spoof_source(LogDriver *s, gboolean enable)
 #if ENABLE_SPOOF_SOURCE
   AFInetDestDriver *self = (AFInetDestDriver *) s;
 
-  self->spoof_source = (self->super.sock_type == SOCK_DGRAM) && enable;
+  self->spoof_source = (self->super.socket_options->type == SOCK_DGRAM) && enable;
 #else
   msg_error("Error enabling spoof-source, you need to compile syslog-ng with --enable-spoof-source", NULL);
 #endif
@@ -121,7 +121,7 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
 
   if (self->super.transport == NULL)
     {
-      if (self->super.sock_type == SOCK_STREAM)
+      if (self->super.socket_options->type == SOCK_STREAM)
         afsocket_dd_set_transport(&self->super.super.super, "tcp");
       else
         afsocket_dd_set_transport(&self->super.super.super, "udp");
@@ -156,8 +156,8 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
           else
             default_dest_port = "514";
         }
-      self->super.sock_type = SOCK_DGRAM;
-      self->super.sock_protocol = 0;
+      self->super.socket_options->type = SOCK_DGRAM;
+      self->super.socket_options->protocol = 0;
       self->super.logproto_name = "dgram";
     }
   else if (strcasecmp(self->super.transport, "tcp") == 0)
@@ -172,8 +172,8 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
           self->super.logproto_name = "text";
           default_dest_port = "514";
         }
-      self->super.sock_type = SOCK_STREAM;
-      self->super.sock_protocol = 0;
+      self->super.socket_options->type = SOCK_STREAM;
+      self->super.socket_options->protocol = 0;
     }
   else if (strcasecmp(self->super.transport, "tls") == 0)
     {
@@ -207,30 +207,30 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
             default_dest_port = "6514";
         }
       self->super.require_tls = TRUE;
-      self->super.sock_type = SOCK_STREAM;
+      self->super.socket_options->type = SOCK_STREAM;
       self->super.logproto_name = "framed";
     }
   else
     {
-      self->super.sock_type = SOCK_STREAM;
+      self->super.socket_options->type = SOCK_STREAM;
       self->super.logproto_name = self->super.transport;
     }
 
   if ((self->bind_ip && !resolve_hostname(&self->super.bind_addr, self->bind_ip)))
     return FALSE;
 
-  if (!self->super.sock_protocol)
+  if (!self->super.socket_options->protocol)
     {
-      if (self->super.sock_type == SOCK_STREAM)
-        self->super.sock_protocol = IPPROTO_TCP;
+      if (self->super.socket_options->type == SOCK_STREAM)
+        self->super.socket_options->protocol = IPPROTO_TCP;
       else
-        self->super.sock_protocol = IPPROTO_UDP;
+        self->super.socket_options->protocol = IPPROTO_UDP;
     }
 
-  ipproto_ent = getprotobynumber(self->super.sock_protocol);
+  ipproto_ent = getprotobynumber(self->super.socket_options->protocol);
   afinet_set_port(self->super.dest_addr, self->dest_port ? : default_dest_port,
                   ipproto_ent ? ipproto_ent->p_name
-                              : (self->super.sock_type == SOCK_STREAM) ? "tcp" : "udp");
+                              : (self->super.socket_options->type == SOCK_STREAM) ? "tcp" : "udp");
 
   if (!self->super.dest_name)
     self->super.dest_name = g_strdup_printf("%s:%d", self->super.hostname,
@@ -264,7 +264,7 @@ afinet_dd_setup_socket(AFSocketDestDriver *s, gint fd)
   if (!resolve_hostname(&self->super.dest_addr, self->super.hostname))
     return FALSE;
 
-  return afinet_setup_socket(fd, self->super.dest_addr, (InetSocketOptions *) s->sock_options_ptr, AFSOCKET_DIR_SEND);
+  return afinet_setup_socket(fd, self->super.dest_addr, &self->inet_socket_options, AFSOCKET_DIR_SEND);
 }
 
 static gboolean
@@ -431,7 +431,7 @@ afinet_dd_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options,
     {
       gboolean success = FALSE;
 
-      g_assert(self->super.sock_type == SOCK_DGRAM);
+      g_assert(self->super.socket_options->type == SOCK_DGRAM);
 
       g_static_mutex_lock(&self->lnet_lock);
       if (!self->lnet_buffer)
@@ -497,7 +497,7 @@ afinet_dd_new_instance(gint af, gint sock_type, gchar *host)
 {
   AFInetDestDriver *self = g_new0(AFInetDestDriver, 1);
 
-  afsocket_dd_init_instance(&self->super, &self->sock_options.super, af, sock_type, host);
+  afsocket_dd_init_instance(&self->super, &self->inet_socket_options.super, af, sock_type, host);
 
   self->super.super.super.super.init = afinet_dd_init;
   self->super.super.super.super.queue = afinet_dd_queue;
@@ -506,11 +506,11 @@ afinet_dd_new_instance(gint af, gint sock_type, gchar *host)
   self->super.apply_transport = afinet_dd_apply_transport;
   if (sock_type == SOCK_STREAM)
     {
-      self->sock_options.super.so_keepalive = TRUE;
+      self->inet_socket_options.super.so_keepalive = TRUE;
 #if defined(TCP_KEEPTIME) && defined(TCP_KEEPIDLE) && defined(TCP_KEEPCNT)
-      self->sock_options.tcp_keepalive_time = 60;
-      self->sock_options.tcp_keepalive_intvl = 10;
-      self->sock_options.tcp_keepalive_probes = 6;
+      self->inet_socket_options.tcp_keepalive_time = 60;
+      self->inet_socket_options.tcp_keepalive_intvl = 10;
+      self->inet_socket_options.tcp_keepalive_probes = 6;
 #endif
     }
 
@@ -520,25 +520,25 @@ afinet_dd_new_instance(gint af, gint sock_type, gchar *host)
   return self;
 }
 
-LogDriver *
+AFInetDestDriver *
 afinet_dd_new(gint af, gint sock_type, gchar *host)
 {
-  return &afinet_dd_new_instance(af, sock_type, host)->super.super.super;
+  return afinet_dd_new_instance(af, sock_type, host);
 }
 
-LogDriver *
+AFInetDestDriver *
 afsyslog_dd_new(gchar *host)
 {
   AFInetDestDriver *self = afinet_dd_new_instance(AF_INET, SOCK_STREAM, host);
 
   self->super.syslog_protocol = TRUE;
-  return &self->super.super.super;
+  return self;
 }
 
-LogDriver *
+AFInetDestDriver *
 afnetwork_dd_new(gchar *host)
 {
   AFInetDestDriver *self = afinet_dd_new_instance(AF_INET, SOCK_STREAM, host);
 
-  return &self->super.super.super;
+  return self;
 }

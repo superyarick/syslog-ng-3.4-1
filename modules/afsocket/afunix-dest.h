@@ -29,10 +29,10 @@
 typedef struct _AFUnixDestDriver
 {
   AFSocketDestDriver super;
-  SocketOptions sock_options;
+  SocketOptions unix_socket_options;
   gchar *filename;
 } AFUnixDestDriver;
 
-LogDriver *afunix_dd_new(gint sock_type, gchar *filename);
+AFUnixDestDriver *afunix_dd_new(gint sock_type, gchar *filename);
 
 #endif

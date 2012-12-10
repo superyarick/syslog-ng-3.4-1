@@ -72,7 +72,7 @@ afsocket_dd_format_persist_name(AFSocketDestDriver *self, gboolean qfile)
 
   g_snprintf(persist_name, sizeof(persist_name),
              qfile ? "afsocket_dd_qfile(%s,%s)" : "afsocket_dd_connection(%s,%s)",
-             (self->sock_type == SOCK_STREAM) ? "stream" : "dgram",
+             (self->socket_options->type == SOCK_STREAM) ? "stream" : "dgram",
              self->dest_name);
   return persist_name;
 }
@@ -89,14 +89,14 @@ afsocket_dd_stats_source(AFSocketDestDriver *self)
       switch (self->bind_addr->sa.sa_family)
         {
         case AF_UNIX:
-          source = (self->sock_type == SOCK_STREAM) ? SCS_UNIX_STREAM : SCS_UNIX_DGRAM;
+          source = (self->socket_options->type == SOCK_STREAM) ? SCS_UNIX_STREAM : SCS_UNIX_DGRAM;
           break;
         case AF_INET:
-          source = (self->sock_type == SOCK_STREAM) ? SCS_TCP : SCS_UDP;
+          source = (self->socket_options->type == SOCK_STREAM) ? SCS_TCP : SCS_UDP;
           break;
 #if ENABLE_IPV6
         case AF_INET6:
-          source = (self->sock_type == SOCK_STREAM) ? SCS_TCP6 : SCS_UDP6;
+          source = (self->socket_options->type == SOCK_STREAM) ? SCS_TCP6 : SCS_UDP6;
           break;
 #endif
         default:
@@ -213,7 +213,7 @@ afsocket_dd_connected(AFSocketDestDriver *self)
   if (iv_fd_registered(&self->connect_fd))
     iv_fd_unregister(&self->connect_fd);
 
-  if (self->sock_type == SOCK_STREAM)
+  if (self->socket_options->type == SOCK_STREAM)
     {
       if (getsockopt(self->fd, SOL_SOCKET, SO_ERROR, &error, &errorlen) == -1)
         {
@@ -260,7 +260,7 @@ afsocket_dd_connected(AFSocketDestDriver *self)
   else
 #endif
 
-  if (self->sock_type == SOCK_STREAM)
+  if (self->socket_options->type == SOCK_STREAM)
     transport = log_transport_stream_socket_new(self->fd);
   else
     transport = log_transport_dgram_socket_new(self->fd);
@@ -283,7 +283,7 @@ afsocket_dd_start_connect(AFSocketDestDriver *self)
   gchar buf1[MAX_SOCKADDR_STRING], buf2[MAX_SOCKADDR_STRING];
 
   main_loop_assert_main_thread();
-  if (!afsocket_open_socket(self->bind_addr, self->sock_type, self->sock_protocol, &sock))
+  if (!afsocket_open_socket(self->bind_addr, self->socket_options->type, self->socket_options->protocol, &sock))
     {
       return FALSE;
     }
@@ -378,9 +378,9 @@ afsocket_dd_init(LogPipe *s)
 
       self->writer = log_writer_new(LW_FORMAT_PROTO |
 #if BUILD_WITH_SSL
-                                    (((self->sock_type == SOCK_STREAM) && !self->tls_context) ? LW_DETECT_EOF : 0) |
+                                    (((self->socket_options->type == SOCK_STREAM) && !self->tls_context) ? LW_DETECT_EOF : 0) |
 #else
-                                    ((self->sock_type == SOCK_STREAM) ? LW_DETECT_EOF : 0) |
+                                    ((self->socket_options->type == SOCK_STREAM) ? LW_DETECT_EOF : 0) |
 #endif
                                     (self->syslog_protocol ? LW_SYSLOG_PROTOCOL : 0));
 
@@ -444,7 +444,7 @@ afsocket_dd_notify(LogPipe *s, LogPipe *sender, gint notify_code, gpointer user_
 static gboolean
 afsocket_dd_setup_socket(AFSocketDestDriver *self, gint fd)
 {
-  return afsocket_setup_socket(fd, self->sock_options_ptr, AFSOCKET_DIR_SEND);
+  return afsocket_setup_socket(fd, self->socket_options, AFSOCKET_DIR_SEND);
 }
 
 void
@@ -469,7 +469,7 @@ afsocket_dd_free(LogPipe *s)
 }
 
 void
-afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *sock_options, gint family, gint sock_type, const gchar *hostname)
+afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *socket_options, gint family, gint sock_type, const gchar *hostname)
 {
   log_dest_driver_init_instance(&self->super);
 
@@ -481,8 +481,8 @@ afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *sock_options,
   self->super.super.super.free_fn = afsocket_dd_free;
   self->super.super.super.notify = afsocket_dd_notify;
   self->setup_socket = afsocket_dd_setup_socket;
-  self->sock_options_ptr = sock_options;
-  self->sock_type = sock_type;
+  self->socket_options = socket_options;
+  self->socket_options->type = sock_type;
   self->address_family = family;
   self->connections_kept_alive_accross_reloads = TRUE;
 

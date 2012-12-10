@@ -44,10 +44,6 @@ struct _AFSocketDestDriver
     syslog_protocol:1,
     require_tls:1;
   gint fd;
-  /* SOCK_DGRAM or SOCK_STREAM or other SOCK_XXX values used by the socket() call */
-  gint sock_type;
-  /* protocol parameter for the socket() call, 0 for default or IPPROTO_XXX for specific transports */
-  gint sock_protocol;
   LogPipe *writer;
   LogWriterOptions writer_options;
   LogProtoClientFactory *proto_factory;
@@ -69,7 +65,7 @@ struct _AFSocketDestDriver
   gint time_reopen;
   struct iv_fd connect_fd;
   struct iv_timer reconnect_timer;
-  SocketOptions *sock_options_ptr;
+  SocketOptions *socket_options;
 
   /*
    * Apply transport options, set up bind_addr/dest_addr based on the
