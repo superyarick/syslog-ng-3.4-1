@@ -64,14 +64,14 @@ afsocket_sc_stats_source(AFSocketSourceConnection *self)
       switch (self->owner->bind_addr->sa.sa_family)
         {
         case AF_UNIX:
-          source = (self->owner->sock_type == SOCK_STREAM) ? SCS_UNIX_STREAM : SCS_UNIX_DGRAM;
+          source = (self->owner->socket_options->type == SOCK_STREAM) ? SCS_UNIX_STREAM : SCS_UNIX_DGRAM;
           break;
         case AF_INET:
-          source = (self->owner->sock_type == SOCK_STREAM) ? SCS_TCP : SCS_UDP;
+          source = (self->owner->socket_options->type == SOCK_STREAM) ? SCS_TCP : SCS_UDP;
           break;
 #if ENABLE_IPV6
         case AF_INET6:
-          source = (self->owner->sock_type == SOCK_STREAM) ? SCS_TCP6 : SCS_UDP6;
+          source = (self->owner->socket_options->type == SOCK_STREAM) ? SCS_TCP6 : SCS_UDP6;
           break;
 #endif
         default:
@@ -134,7 +134,7 @@ afsocket_sc_init(LogPipe *s)
         }
       else
 #endif
-      if (self->owner->sock_type == SOCK_DGRAM)
+      if (self->owner->socket_options->type == SOCK_DGRAM)
         transport = log_transport_dgram_socket_new(self->sock);
       else
         transport = log_transport_stream_socket_new(self->sock);
@@ -180,7 +180,7 @@ afsocket_sc_notify(LogPipe *s, LogPipe *sender, gint notify_code, gpointer user_
     case NC_CLOSE:
     case NC_READ_ERROR:
       {
-        if (self->owner->sock_type == SOCK_STREAM)
+        if (self->owner->socket_options->type == SOCK_STREAM)
           afsocket_sd_close_connection(self->owner, self);
         break;
       }
@@ -319,7 +319,7 @@ afsocket_sd_format_persist_name(AFSocketSourceDriver *self, gboolean listener_na
 
   g_snprintf(persist_name, sizeof(persist_name),
              listener_name ? "afsocket_sd_listen_fd(%s,%s)" : "afsocket_sd_connections(%s,%s)",
-             (self->sock_type == SOCK_STREAM) ? "stream" : "dgram",
+             (self->socket_options->type == SOCK_STREAM) ? "stream" : "dgram",
              g_sockaddr_format(self->bind_addr, buf, sizeof(buf), GSA_FULL));
   return persist_name;
 }
@@ -513,7 +513,7 @@ afsocket_sd_init(LogPipe *s)
   g_assert(self->transport);
   g_assert(self->bind_addr);
 
-  if (self->sock_type == SOCK_STREAM && !self->window_size_initialized)
+  if (self->socket_options->type == SOCK_STREAM && !self->window_size_initialized)
     {
       /* distribute the window evenly between each of our possible
        * connections.  This is quite pessimistic and can result in very low
@@ -552,7 +552,7 @@ afsocket_sd_init(LogPipe *s)
 
   /* ok, we have connection list, check if we need to open a listener */
   sock = -1;
-  if (self->sock_type == SOCK_STREAM)
+  if (self->socket_options->type == SOCK_STREAM)
     {
       if (self->connections_kept_alive_accross_reloads)
         {
@@ -565,7 +565,7 @@ afsocket_sd_init(LogPipe *s)
         {
           if (!afsocket_sd_acquire_socket(self, &sock))
             return self->super.super.optional;
-          if (sock == -1 && !afsocket_open_socket(self->bind_addr, self->sock_type, self->sock_protocol, &sock))
+          if (sock == -1 && !afsocket_open_socket(self->bind_addr, self->socket_options->type, self->socket_options->protocol, &sock))
             return self->super.super.optional;
         }
 
@@ -595,7 +595,7 @@ afsocket_sd_init(LogPipe *s)
         {
           if (!afsocket_sd_acquire_socket(self, &sock))
             return self->super.super.optional;
-          if (sock == -1 && !afsocket_open_socket(self->bind_addr, self->sock_type, self->sock_protocol, &sock))
+          if (sock == -1 && !afsocket_open_socket(self->bind_addr, self->socket_options->type, self->socket_options->protocol, &sock))
             return self->super.super.optional;
 
           if (!self->setup_socket(self, sock))
@@ -645,7 +645,7 @@ afsocket_sd_deinit(LogPipe *s)
     }
   self->connections = NULL;
 
-  if (self->sock_type == SOCK_STREAM)
+  if (self->socket_options->type == SOCK_STREAM)
     {
       afsocket_sd_stop_watches(self);
       if (!self->connections_kept_alive_accross_reloads)
@@ -663,7 +663,7 @@ afsocket_sd_deinit(LogPipe *s)
           cfg_persist_config_add(cfg, afsocket_sd_format_persist_name(self, TRUE), GUINT_TO_POINTER(self->fd + 1), afsocket_sd_close_fd, FALSE);
         }
     }
-  else if (self->sock_type == SOCK_DGRAM)
+  else if (self->socket_options->type == SOCK_DGRAM)
     {
       /* we don't need to close the listening fd here as we have a
        * single connection which will close it */
@@ -694,7 +694,7 @@ afsocket_sd_notify(LogPipe *s, LogPipe *sender, gint notify_code, gpointer user_
 static gboolean
 afsocket_sd_setup_socket(AFSocketSourceDriver *self, gint fd)
 {
-  return afsocket_setup_socket(fd, self->sock_options_ptr, AFSOCKET_DIR_RECV);
+  return afsocket_setup_socket(fd, self->socket_options, AFSOCKET_DIR_RECV);
 }
 
 void
@@ -716,7 +716,7 @@ afsocket_sd_free(LogPipe *s)
 }
 
 void
-afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *sock_options, gint family, gint sock_type)
+afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *socket_options, gint family, gint sock_type)
 {
   log_src_driver_init_instance(&self->super);
 
@@ -726,15 +726,15 @@ afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *sock_option
   /* NULL behaves as if log_pipe_forward_msg was specified */
   self->super.super.super.queue = NULL;
   self->super.super.super.notify = afsocket_sd_notify;
-  self->sock_options_ptr = sock_options;
+  self->socket_options = socket_options;
   self->setup_socket = afsocket_sd_setup_socket;
   self->address_family = family;
   self->max_connections = 10;
   self->listen_backlog = 255;
-  self->sock_type = sock_type;
+  self->socket_options->type = sock_type;
   self->connections_kept_alive_accross_reloads = TRUE;
   log_reader_options_defaults(&self->reader_options);
-  if (self->sock_type == SOCK_STREAM)
+  if (self->socket_options->type == SOCK_STREAM)
     self->reader_options.super.init_window_size = 1000;
 
 #if 0

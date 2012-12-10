@@ -57,7 +57,7 @@ afinet_sd_set_localip(LogDriver *s, gchar *ip)
 static gboolean
 afinet_sd_setup_socket(AFSocketSourceDriver *s, gint fd)
 {
-  return afinet_setup_socket(fd, s->bind_addr, (InetSocketOptions *) s->sock_options_ptr, AFSOCKET_DIR_RECV);
+  return afinet_setup_socket(fd, s->bind_addr, (InetSocketOptions *) s->socket_options, AFSOCKET_DIR_RECV);
 }
 
 static gboolean
@@ -93,7 +93,7 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
 
   if (self->super.transport == NULL)
     {
-      if (self->super.sock_type == SOCK_STREAM)
+      if (self->super.socket_options->type == SOCK_STREAM)
         afsocket_sd_set_transport(&self->super.super.super, "tcp");
       else
         afsocket_sd_set_transport(&self->super.super.super, "udp");
@@ -128,7 +128,7 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
           else
             default_bind_port = "514";
         }
-      self->super.sock_type = SOCK_DGRAM;
+      self->super.socket_options->type = SOCK_DGRAM;
       self->super.logproto_name = "dgram";
     }
   else if (strcasecmp(self->super.transport, "tcp") == 0)
@@ -143,7 +143,7 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
           default_bind_port = "514";
           self->super.logproto_name = "text";
         }
-      self->super.sock_type = SOCK_STREAM;
+      self->super.socket_options->type = SOCK_STREAM;
     }
   else if (strcasecmp(self->super.transport, "tls") == 0)
     {
@@ -177,27 +177,27 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
             default_bind_port = "6514";
         }
       self->super.require_tls = TRUE;
-      self->super.sock_type = SOCK_STREAM;
+      self->super.socket_options->type = SOCK_STREAM;
       self->super.logproto_name = "framed";
     }
   else
     {
       self->super.logproto_name = self->super.transport;
-      self->super.sock_type = SOCK_STREAM;
+      self->super.socket_options->type = SOCK_STREAM;
     }
 
-  if (!self->super.sock_protocol)
+  if (!self->super.socket_options->protocol)
     {
-      if (self->super.sock_type == SOCK_STREAM)
-        self->super.sock_protocol = IPPROTO_TCP;
+      if (self->super.socket_options->type == SOCK_STREAM)
+        self->super.socket_options->protocol = IPPROTO_TCP;
       else
-        self->super.sock_protocol = IPPROTO_UDP;
+        self->super.socket_options->protocol = IPPROTO_UDP;
     }
 
-  ipproto_ent = getprotobynumber(self->super.sock_protocol);
+  ipproto_ent = getprotobynumber(self->super.socket_options->protocol);
   afinet_set_port(self->super.bind_addr, self->bind_port ? : default_bind_port,
                   ipproto_ent ? ipproto_ent->p_name
-                              : (self->super.sock_type == SOCK_STREAM) ? "tcp" : "udp");
+                              : (self->super.socket_options->type == SOCK_STREAM) ? "tcp" : "udp");
   if (!resolve_hostname(&self->super.bind_addr, self->bind_ip ? : default_bind_ip))
     return FALSE;
 
@@ -229,7 +229,7 @@ afinet_sd_new_instance(gint af, gint sock_type)
 {
   AFInetSourceDriver *self = g_new0(AFInetSourceDriver, 1);
 
-  afsocket_sd_init_instance(&self->super, &self->sock_options.super, af, sock_type);
+  afsocket_sd_init_instance(&self->super, &self->inet_socket_options.super, af, sock_type);
   self->super.super.super.super.free_fn = afinet_sd_free;
 
   self->super.setup_socket = afinet_sd_setup_socket;
@@ -237,26 +237,26 @@ afinet_sd_new_instance(gint af, gint sock_type)
   return self;
 }
 
-LogDriver *
+AFInetSourceDriver *
 afinet_sd_new(gint af, gint sock_type)
 {
-  return &afinet_sd_new_instance(af, sock_type)->super.super.super;
+  return afinet_sd_new_instance(af, sock_type);
 }
 
-LogDriver *
+AFInetSourceDriver *
 afsyslog_sd_new(void)
 {
   AFInetSourceDriver *self = afinet_sd_new_instance(AF_INET, SOCK_STREAM);
 
   self->super.reader_options.parse_options.flags |= LP_SYSLOG_PROTOCOL;
   self->super.syslog_protocol = TRUE;
-  return &self->super.super.super;
+  return self;
 }
 
-LogDriver *
+AFInetSourceDriver *
 afnetwork_sd_new(void)
 {
   AFInetSourceDriver *self = afinet_sd_new_instance(AF_INET, SOCK_STREAM);
 
-  return &self->super.super.super;
+  return self;
 }

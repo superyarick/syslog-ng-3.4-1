@@ -47,10 +47,6 @@ struct _AFSocketSourceDriver
     window_size_initialized:1;
   struct iv_fd listen_fd;
   gint fd;
-  /* SOCK_DGRAM or SOCK_STREAM or other SOCK_XXX values used by the socket() call */
-  gint sock_type;
-  /* protocol parameter for the socket() call, 0 for default or IPPROTO_XXX for specific transports */
-  gint sock_protocol;
   LogReaderOptions reader_options;
   LogProtoServerFactory *proto_factory;
 #if BUILD_WITH_SSL
@@ -64,7 +60,7 @@ struct _AFSocketSourceDriver
   gint num_connections;
   gint listen_backlog;
   GList *connections;
-  SocketOptions *sock_options_ptr;
+  SocketOptions *socket_options;
 
 
   /*

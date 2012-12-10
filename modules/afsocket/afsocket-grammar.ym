@@ -59,6 +59,28 @@ TLSContext *last_tls_context;
 
 #endif
 
+static void
+afsocket_grammar_set_source_driver(AFSocketSourceDriver *sd)
+{
+  last_driver = &sd->super.super;
+
+  last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
+  last_sock_options = ((AFSocketSourceDriver *) last_driver)->socket_options;
+}
+
+static void
+afunix_grammar_set_source_driver(AFUnixSourceDriver *sd)
+{
+  afsocket_grammar_set_source_driver(&sd->super);
+  last_file_perm_options = &sd->file_perm_options;
+}
+
+static void
+afinet_grammar_set_source_driver(AFInetSourceDriver *sd)
+{
+  afsocket_grammar_set_source_driver(&sd->super);
+}
+
 }
 
 %name-prefix "afsocket_"
@@ -114,6 +136,7 @@ TLSContext *last_tls_context;
 
 /* INCLUDE_DECLS */
 
+%type   <ptr> driver
 %type	<ptr> source_afunix
 %type	<ptr> source_afunix_dgram_params
 %type	<ptr> source_afunix_stream_params
@@ -142,14 +165,24 @@ TLSContext *last_tls_context;
 %%
 
 start
-        : LL_CONTEXT_SOURCE source_afunix                     { YYACCEPT; }
-        | LL_CONTEXT_SOURCE source_afinet                     { YYACCEPT; }
-        | LL_CONTEXT_SOURCE source_afsyslog                   { YYACCEPT; }
-        | LL_CONTEXT_SOURCE source_afnetwork                  { YYACCEPT; }
-        | LL_CONTEXT_DESTINATION dest_afunix                  { YYACCEPT; }
-        | LL_CONTEXT_DESTINATION dest_afinet                  { YYACCEPT; }
-        | LL_CONTEXT_DESTINATION dest_afsyslog                { YYACCEPT; }
-        | LL_CONTEXT_DESTINATION dest_afnetwork               { YYACCEPT; }
+        : driver
+          {
+            *instance = $1;
+            if (yychar != YYEMPTY)
+              cfg_lexer_unput_token(lexer, &yylval);
+            YYACCEPT;
+          }
+        ;
+
+driver
+        : LL_CONTEXT_SOURCE source_afunix                     { $$ = $2; }
+        | LL_CONTEXT_SOURCE source_afinet                     { $$ = $2; }
+        | LL_CONTEXT_SOURCE source_afsyslog                   { $$ = $2; }
+        | LL_CONTEXT_SOURCE source_afnetwork                  { $$ = $2; }
+        | LL_CONTEXT_DESTINATION dest_afunix                  { $$ = $2; }
+        | LL_CONTEXT_DESTINATION dest_afinet                  { $$ = $2; }
+        | LL_CONTEXT_DESTINATION dest_afsyslog                { $$ = $2; }
+        | LL_CONTEXT_DESTINATION dest_afnetwork               { $$ = $2; }
         ;
 
 afinet_ip_protocol_option
@@ -179,11 +212,10 @@ source_afunix
 source_afunix_dgram_params
 	: string
 	  {
-	    last_driver = *instance = afunix_sd_new(SOCK_DGRAM, $1);
+            AFUnixSourceDriver *d = afunix_sd_new(SOCK_DGRAM, $1);
+
+            afunix_grammar_set_source_driver(d);
 	    free($1);
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFUnixSourceDriver *) last_driver)->sock_options;
-            last_file_perm_options = &((AFUnixSourceDriver *) last_driver)->file_perm_options;
 	  }
 	  source_afunix_options			{ $$ = last_driver; }
 	;
@@ -191,11 +223,10 @@ source_afunix_dgram_params
 source_afunix_stream_params
 	: string
 	  {
-	    last_driver = *instance = afunix_sd_new(SOCK_STREAM, $1);
+	    AFUnixSourceDriver *d = afunix_sd_new(SOCK_STREAM, $1);
+
+            afunix_grammar_set_source_driver(d);
 	    free($1);
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFUnixSourceDriver *) last_driver)->sock_options;
-            last_file_perm_options = &((AFUnixSourceDriver *) last_driver)->file_perm_options;
 	  }
 	  source_afunix_options			{ $$ = last_driver; }
 	;
@@ -224,9 +255,9 @@ source_afinet
 source_afinet_udp_params
         :
           {
-	    last_driver = *instance = afinet_sd_new(last_addr_family, SOCK_DGRAM);
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFInetSourceDriver *) last_driver)->sock_options.super;
+            AFInetSourceDriver *d = afinet_sd_new(last_addr_family, SOCK_DGRAM);
+
+            afinet_grammar_set_source_driver(d);
 	  }
 	  source_afinet_udp_options		{ $$ = last_driver; }
 	;
@@ -252,9 +283,9 @@ source_afinet_option
 source_afinet_tcp_params
 	:
 	  {
-	    last_driver = *instance = afinet_sd_new(last_addr_family, SOCK_STREAM);
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFInetSourceDriver *) last_driver)->sock_options.super;
+	    AFInetSourceDriver *d = afinet_sd_new(last_addr_family, SOCK_STREAM);
+
+            afinet_grammar_set_source_driver(d);
 	  }
 	  source_afinet_tcp_options	{ $$ = last_driver; }
 	;
@@ -294,9 +325,9 @@ source_afsyslog_params
 	:
 	  {
             /* we use transport(tcp) transport by default */
-	    last_driver = *instance = afsyslog_sd_new();
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFInetSourceDriver *) last_driver)->sock_options.super;
+	    AFInetSourceDriver *d = afsyslog_sd_new();
+
+            afinet_grammar_set_source_driver(d);
 	  }
 	  source_afsyslog_options	{ $$ = last_driver; }
 	;
@@ -320,9 +351,9 @@ source_afnetwork_params
 	:
 	  {
             /* we use transport(tcp) transport by default */
-	    last_driver = *instance = afnetwork_sd_new();
-	    last_reader_options = &((AFSocketSourceDriver *) last_driver)->reader_options;
-	    last_sock_options = &((AFInetSourceDriver *) last_driver)->sock_options.super;
+	    AFInetSourceDriver *d = afnetwork_sd_new();
+
+            afinet_grammar_set_source_driver(d);
 	  }
 	  source_afnetwork_options	{ $$ = last_driver; }
         ;

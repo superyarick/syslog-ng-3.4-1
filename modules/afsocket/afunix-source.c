@@ -75,7 +75,7 @@ afunix_sd_acquire_named_socket(AFSocketSourceDriver *s, gint *result_fd,
 	  if (sd_is_socket_unix(fd, 0, -1, filename, 0))
 	    {
 	      /* check if it matches our idea of the socket type */
-              if (sd_is_socket_unix(fd, self->super.sock_type, -1, filename, 0))
+              if (sd_is_socket_unix(fd, self->super.socket_options->type, -1, filename, 0))
                 {
                   *result_fd = fd;
                   break;
@@ -85,7 +85,7 @@ afunix_sd_acquire_named_socket(AFSocketSourceDriver *s, gint *result_fd,
                   msg_error("The systemd supplied UNIX domain socket is of a different type, check the configured driver and the matching systemd unit file",
 		            evt_tag_str("filename", filename),
 		            evt_tag_int("systemd-sock-fd", fd),
-                            evt_tag_str("expecting", self->super.sock_type == SOCK_STREAM ? "unix-stream()" : "unix-dgram()"),
+                            evt_tag_str("expecting", self->super.socket_options->type == SOCK_STREAM ? "unix-stream()" : "unix-dgram()"),
                             NULL);
                   return FALSE;
                 }
@@ -172,7 +172,7 @@ afunix_sd_apply_transport(AFSocketSourceDriver *s)
   if (!self->super.bind_addr)
     self->super.bind_addr = g_sockaddr_unix_new(self->filename);
 
-  if (self->super.sock_type == SOCK_DGRAM)
+  if (self->super.socket_options->type == SOCK_DGRAM)
     {
       afsocket_sd_set_transport(&self->super.super.super, "unix-dgram");
       self->super.logproto_name = "dgram";
@@ -216,12 +216,12 @@ afunix_sd_free(LogPipe *s)
   afsocket_sd_free(s);
 }
 
-LogDriver *
+AFUnixSourceDriver *
 afunix_sd_new(gint sock_type, gchar *filename)
 {
   AFUnixSourceDriver *self = g_new0(AFUnixSourceDriver, 1);
 
-  afsocket_sd_init_instance(&self->super, &self->sock_options, AF_UNIX, sock_type);
+  afsocket_sd_init_instance(&self->super, &self->unix_socket_options, AF_UNIX, sock_type);
 
   self->super.super.super.super.init = afunix_sd_init;
   self->super.super.super.super.free_fn = afunix_sd_free;
@@ -231,11 +231,11 @@ afunix_sd_new(gint sock_type, gchar *filename)
   self->super.max_connections = 256;
   self->super.recvd_messages_are_local = TRUE;
 
-  if (self->super.sock_type == SOCK_STREAM)
+  if (self->super.socket_options->type == SOCK_STREAM)
     self->super.reader_options.super.init_window_size = self->super.max_connections * 100;
 
   self->filename = g_strdup(filename);
   file_perm_options_defaults(&self->file_perm_options);
   self->file_perm_options.file_perm = 0666;
-  return &self->super.super.super;
+  return self;
 }
