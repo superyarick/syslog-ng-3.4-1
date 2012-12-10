@@ -483,7 +483,7 @@ afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *socket_option
   self->setup_socket = afsocket_dd_setup_socket;
   self->socket_options = socket_options;
   self->socket_options->type = sock_type;
-  self->address_family = family;
+  self->socket_options->address_family = family;
   self->connections_kept_alive_accross_reloads = TRUE;
 
   self->hostname = g_strdup(hostname);

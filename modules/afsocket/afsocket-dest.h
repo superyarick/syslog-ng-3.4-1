@@ -50,7 +50,6 @@ struct _AFSocketDestDriver
 #if BUILD_WITH_SSL
   TLSContext *tls_context;
 #endif
-  gint address_family;
   gchar *hostname;
   /* transport as specified by the user */
   gchar *transport;

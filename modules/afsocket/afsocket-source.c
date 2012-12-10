@@ -728,9 +728,9 @@ afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *socket_opti
   self->super.super.super.notify = afsocket_sd_notify;
   self->socket_options = socket_options;
   self->setup_socket = afsocket_sd_setup_socket;
-  self->address_family = family;
   self->max_connections = 10;
   self->listen_backlog = 255;
+  self->socket_options->address_family = family;
   self->socket_options->type = sock_type;
   self->connections_kept_alive_accross_reloads = TRUE;
   log_reader_options_defaults(&self->reader_options);

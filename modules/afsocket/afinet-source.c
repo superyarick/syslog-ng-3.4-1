@@ -71,13 +71,13 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
 
   g_sockaddr_unref(self->super.bind_addr);
 
-  if (self->super.address_family == AF_INET)
+  if (self->super.socket_options->address_family == AF_INET)
     {
       self->super.bind_addr = g_sockaddr_inet_new("0.0.0.0", 0);
       default_bind_ip = "0.0.0.0";
     }
 #if ENABLE_IPV6
-  else if (self->super.address_family == AF_INET6)
+  else if (self->super.socket_options->address_family == AF_INET6)
     {
       self->super.bind_addr = g_sockaddr_inet6_new("::", 0);
       default_bind_ip = "::";

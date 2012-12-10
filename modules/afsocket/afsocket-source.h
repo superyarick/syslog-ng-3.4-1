@@ -52,7 +52,6 @@ struct _AFSocketSourceDriver
 #if BUILD_WITH_SSL
   TLSContext *tls_context;
 #endif
-  gint address_family;
   GSockAddr *bind_addr;
   gchar *transport;
   gchar *logproto_name;

@@ -35,6 +35,7 @@ typedef enum
 
 typedef struct _SocketOptions
 {
+  gint address_family;
   /* SOCK_DGRAM or SOCK_STREAM or other SOCK_XXX values used by the socket() call */
   gint type;
   /* protocol parameter for the socket() call, 0 for default or IPPROTO_XXX for specific transports */
