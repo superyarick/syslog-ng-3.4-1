@@ -175,12 +175,12 @@ afunix_sd_apply_transport(AFSocketSourceDriver *s)
   if (self->super.socket_options->type == SOCK_DGRAM)
     {
       afsocket_sd_set_transport(&self->super.super.super, "unix-dgram");
-      self->super.logproto_name = "dgram";
+      self->super.socket_options->logproto_name = "dgram";
     }
   else
     {
       afsocket_sd_set_transport(&self->super.super.super, "unix-stream");
-      self->super.logproto_name = "text";
+      self->super.socket_options->logproto_name = "text";
     }
 
   return TRUE;
@@ -221,6 +221,7 @@ afunix_sd_new(gint sock_type, gchar *filename)
 {
   AFUnixSourceDriver *self = g_new0(AFUnixSourceDriver, 1);
 
+  afsocket_options_init(&self->unix_socket_options);
   afsocket_sd_init_instance(&self->super, &self->unix_socket_options, AF_UNIX, sock_type);
 
   self->super.super.super.super.init = afunix_sd_init;

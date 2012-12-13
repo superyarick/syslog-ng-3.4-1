@@ -33,7 +33,9 @@ typedef enum
   AFSOCKET_DIR_SEND = 0x02,
 } AFSocketDirection;
 
-typedef struct _SocketOptions
+typedef struct _AFSocketOptions AFSocketOptions;
+
+struct _AFSocketOptions
 {
   gint address_family;
   /* SOCK_DGRAM or SOCK_STREAM or other SOCK_XXX values used by the socket() call */
@@ -46,9 +48,20 @@ typedef struct _SocketOptions
   gint so_rcvbuf;
   gint so_broadcast;
   gint so_keepalive;
-} SocketOptions;
 
-gboolean afsocket_setup_socket(gint fd, SocketOptions *sock_options, AFSocketDirection dir);
+  gchar *transport;
+  const gchar *logproto_name;
+  
+  gboolean (*apply_transport)(AFSocketOptions *self);
+  void (*free_fn)(AFSocketOptions *self);
+};
+
+gboolean afsocket_setup_socket(gint fd, AFSocketOptions *sock_options, AFSocketDirection dir);
 gboolean afsocket_open_socket(GSockAddr *bind_addr, gint sock_type, gint sock_protocol, int *fd);
+
+void afsocket_options_set_transport(AFSocketOptions *self, const gchar *transport);
+gboolean afsocket_options_apply_transport_method(AFSocketOptions *self);
+void afsocket_options_init(AFSocketOptions *self);
+void afsocket_options_free(AFSocketOptions *self);
 
 #endif

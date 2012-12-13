@@ -32,7 +32,7 @@ typedef struct _AFUnixSourceDriver
   AFSocketSourceDriver super;
   gchar *filename;
   FilePermOptions file_perm_options;
-  SocketOptions unix_socket_options;
+  AFSocketOptions unix_socket_options;
 } AFUnixSourceDriver;
 
 AFUnixSourceDriver *afunix_sd_new(gint sock_type, gchar *filename);

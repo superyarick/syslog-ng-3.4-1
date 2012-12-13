@@ -30,7 +30,7 @@
 #include <sys/socket.h>
 
 gboolean
-afsocket_setup_socket(gint fd, SocketOptions *sock_options, AFSocketDirection dir)
+afsocket_setup_socket(gint fd, AFSocketOptions *sock_options, AFSocketDirection dir)
 {
   gint rc;
   if (dir & AFSOCKET_DIR_RECV)
@@ -120,4 +120,37 @@ afsocket_open_socket(GSockAddr *bind_addr, gint sock_type, gint sock_protocol, i
                 NULL);
       return FALSE;
     }
+}
+
+gboolean
+afsocket_options_apply_transport_method(AFSocketOptions *self)
+{
+  return TRUE;
+}
+
+void
+afsocket_options_set_transport(AFSocketOptions *self, const gchar *transport)
+{
+  g_free(self->transport);
+  self->transport = g_strdup(transport);
+}
+
+void
+afsocket_options_free_method(AFSocketOptions *self)
+{
+  g_free(self->transport);
+}
+
+void
+afsocket_options_init(AFSocketOptions *self)
+{
+  self->free_fn = afsocket_options_free_method;
+  self->apply_transport = afsocket_options_apply_transport_method;
+}
+
+void
+afsocket_options_free(AFSocketOptions *self)
+{
+  if (self->free_fn)
+    self->free_fn(self);
 }

@@ -51,8 +51,6 @@ struct _AFSocketDestDriver
   TLSContext *tls_context;
 #endif
   gchar *hostname;
-  /* transport as specified by the user */
-  gchar *transport;
 
   /* logproto plugin name, borrowed char pointer, no need to free. If
    * allocated dynamically, a free must be added and an strdup to all
@@ -64,7 +62,7 @@ struct _AFSocketDestDriver
   gint time_reopen;
   struct iv_fd connect_fd;
   struct iv_timer reconnect_timer;
-  SocketOptions *socket_options;
+  AFSocketOptions *socket_options;
 
   /*
    * Apply transport options, set up bind_addr/dest_addr based on the
@@ -99,7 +97,7 @@ afsocket_dd_apply_transport(AFSocketDestDriver *s)
 
 void afsocket_dd_set_transport(LogDriver *s, const gchar *transport);
 void afsocket_dd_set_keep_alive(LogDriver *self, gint enable);
-void afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *sock_options, gint family, gint sock_type, const gchar *hostname);
+void afsocket_dd_init_instance(AFSocketDestDriver *self, AFSocketOptions *sock_options, gint family, gint sock_type, const gchar *hostname);
 gboolean afsocket_dd_init(LogPipe *s);
 void afsocket_dd_free(LogPipe *s);
 

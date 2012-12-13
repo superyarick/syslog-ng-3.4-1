@@ -41,9 +41,9 @@ afsocket_dd_set_transport(LogDriver *s, const gchar *transport)
 {
   AFSocketDestDriver *self = (AFSocketDestDriver *) s;
 
-  if (self->transport)
-    g_free(self->transport);
-  self->transport = g_strdup(transport);
+  if (self->socket_options->transport)
+    g_free(self->socket_options->transport);
+  self->socket_options->transport = g_strdup(transport);
 }
 
 #if BUILD_WITH_SSL
@@ -122,7 +122,7 @@ afsocket_dd_stats_instance(AFSocketDestDriver *self)
     {
       static gchar buf[256];
 
-      g_snprintf(buf, sizeof(buf), "%s,%s", self->transport, self->dest_name);
+      g_snprintf(buf, sizeof(buf), "%s,%s", self->socket_options->transport, self->dest_name);
       return buf;
     }
 }
@@ -359,7 +359,7 @@ afsocket_dd_init(LogPipe *s)
     }
 
   /* these fields must be set up by apply_transport, so let's check if it indeed did */
-  g_assert(self->transport);
+  g_assert(self->socket_options->transport);
   g_assert(self->bind_addr);
   g_assert(self->hostname);
   g_assert(self->dest_name);
@@ -458,7 +458,7 @@ afsocket_dd_free(LogPipe *s)
   log_pipe_unref(self->writer);
   g_free(self->hostname);
   g_free(self->dest_name);
-  g_free(self->transport);
+  g_free(self->socket_options->transport);
 #if BUILD_WITH_SSL
   if(self->tls_context)
     {
@@ -469,7 +469,7 @@ afsocket_dd_free(LogPipe *s)
 }
 
 void
-afsocket_dd_init_instance(AFSocketDestDriver *self, SocketOptions *socket_options, gint family, gint sock_type, const gchar *hostname)
+afsocket_dd_init_instance(AFSocketDestDriver *self, AFSocketOptions *socket_options, gint family, gint sock_type, const gchar *hostname)
 {
   log_dest_driver_init_instance(&self->super);
 

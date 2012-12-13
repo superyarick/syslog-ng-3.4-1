@@ -119,7 +119,7 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
       g_assert_not_reached();
     }
 
-  if (self->super.transport == NULL)
+  if (self->super.socket_options->transport == NULL)
     {
       if (self->super.socket_options->type == SOCK_STREAM)
         afsocket_dd_set_transport(&self->super.super.super, "tcp");
@@ -127,7 +127,7 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
         afsocket_dd_set_transport(&self->super.super.super, "udp");
     }
 
-  if (strcasecmp(self->super.transport, "udp") == 0)
+  if (strcasecmp(self->super.socket_options->transport, "udp") == 0)
     {
       static gboolean msg_udp_source_port_warning = FALSE;
 
@@ -158,24 +158,24 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
         }
       self->super.socket_options->type = SOCK_DGRAM;
       self->super.socket_options->protocol = 0;
-      self->super.logproto_name = "dgram";
+      self->super.socket_options->logproto_name = "dgram";
     }
-  else if (strcasecmp(self->super.transport, "tcp") == 0)
+  else if (strcasecmp(self->super.socket_options->transport, "tcp") == 0)
     {
       if (self->super.syslog_protocol)
         {
-          self->super.logproto_name = "framed";
+          self->super.socket_options->logproto_name = "framed";
           default_dest_port = "601";
         }
       else
         {
-          self->super.logproto_name = "text";
+          self->super.socket_options->logproto_name = "text";
           default_dest_port = "514";
         }
       self->super.socket_options->type = SOCK_STREAM;
       self->super.socket_options->protocol = 0;
     }
-  else if (strcasecmp(self->super.transport, "tls") == 0)
+  else if (strcasecmp(self->super.socket_options->transport, "tls") == 0)
     {
       static gboolean msg_tls_source_port_warning = FALSE;
 
@@ -213,7 +213,7 @@ afinet_dd_apply_transport(AFSocketDestDriver *s)
   else
     {
       self->super.socket_options->type = SOCK_STREAM;
-      self->super.logproto_name = self->super.transport;
+      self->super.logproto_name = self->super.socket_options->transport;
     }
 
   if ((self->bind_ip && !resolve_hostname(&self->super.bind_addr, self->bind_ip)))

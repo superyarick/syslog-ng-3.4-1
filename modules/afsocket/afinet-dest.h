@@ -38,7 +38,7 @@ typedef struct libnet_context libnet_t;
 typedef struct _AFInetDestDriver
 {
   AFSocketDestDriver super;
-  InetSocketOptions inet_socket_options;
+  AFInetSocketOptions inet_socket_options;
 #if ENABLE_SPOOF_SOURCE
   gboolean spoof_source;
   libnet_t *lnet_ctx;

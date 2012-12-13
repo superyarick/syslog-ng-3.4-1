@@ -27,19 +27,25 @@
 #include "afsocket-source.h"
 #include "afsocket-dest.h"
 
-typedef struct _InetSocketOptions
+typedef struct _AFInetSocketOptions
 {
-  SocketOptions super;
+  AFSocketOptions super;
+  /* user settings */
   gint ip_ttl;
   gint ip_tos;
   gint tcp_keepalive_time;
   gint tcp_keepalive_intvl;
   gint tcp_keepalive_probes;
-} InetSocketOptions;
+  gchar *bind_port;
+
+  /* output */
+  gint port;
+  gboolean require_tls;
+} AFInetSocketOptions;
 
 void afinet_set_port(GSockAddr *addr, gchar *service, const gchar *proto);
-gboolean afinet_setup_socket(gint fd, GSockAddr *addr, InetSocketOptions *sock_options, AFSocketDirection dir);
+gboolean afinet_setup_socket(gint fd, GSockAddr *addr, AFInetSocketOptions *sock_options, AFSocketDirection dir);
 
-
+void afinet_socket_options_init(AFInetSocketOptions *self);
 
 #endif

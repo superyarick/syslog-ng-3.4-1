@@ -30,7 +30,7 @@
 typedef struct _AFInetSourceDriver
 {
   AFSocketSourceDriver super;
-  InetSocketOptions inet_socket_options;
+  AFInetSocketOptions inet_socket_options;
   /* character as it can contain a service name from /etc/services */
   gchar *bind_port;
   gchar *bind_ip;

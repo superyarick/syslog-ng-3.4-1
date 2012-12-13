@@ -69,6 +69,7 @@ afunix_dd_new(gint sock_type, gchar *filename)
 {
   AFUnixDestDriver *self = g_new0(AFUnixDestDriver, 1);
 
+  afsocket_options_init(&self->unix_socket_options);
   afsocket_dd_init_instance(&self->super, &self->unix_socket_options, AF_UNIX, sock_type, "localhost");
   self->super.super.super.super.free_fn = afunix_dd_free;
   self->super.apply_transport = afunix_dd_apply_transport;

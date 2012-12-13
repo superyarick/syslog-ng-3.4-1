@@ -57,7 +57,7 @@ afinet_sd_set_localip(LogDriver *s, gchar *ip)
 static gboolean
 afinet_sd_setup_socket(AFSocketSourceDriver *s, gint fd)
 {
-  return afinet_setup_socket(fd, s->bind_addr, (InetSocketOptions *) s->socket_options, AFSOCKET_DIR_RECV);
+  return afinet_setup_socket(fd, s->bind_addr, (AFInetSocketOptions *) s->socket_options, AFSOCKET_DIR_RECV);
 }
 
 static gboolean
@@ -91,15 +91,15 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
 
   /* determine default port, apply transport setting to afsocket flags */
 
-  if (self->super.transport == NULL)
+  if (self->super.socket_options->transport == NULL)
     {
       if (self->super.socket_options->type == SOCK_STREAM)
         afsocket_sd_set_transport(&self->super.super.super, "tcp");
       else
         afsocket_sd_set_transport(&self->super.super.super, "udp");
     }
-;
-  if (strcasecmp(self->super.transport, "udp") == 0)
+
+  if (strcasecmp(self->super.socket_options->transport, "udp") == 0)
     {
       static gboolean msg_udp_source_port_warning = FALSE;
 
@@ -129,23 +129,23 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
             default_bind_port = "514";
         }
       self->super.socket_options->type = SOCK_DGRAM;
-      self->super.logproto_name = "dgram";
+      self->super.socket_options->logproto_name = "dgram";
     }
-  else if (strcasecmp(self->super.transport, "tcp") == 0)
+  else if (strcasecmp(self->super.socket_options->transport, "tcp") == 0)
     {
       if (self->super.syslog_protocol)
         {
           default_bind_port = "601";
-          self->super.logproto_name = "framed";
+          self->super.socket_options->logproto_name = "framed";
         }
       else
         {
           default_bind_port = "514";
-          self->super.logproto_name = "text";
+          self->super.socket_options->logproto_name = "text";
         }
       self->super.socket_options->type = SOCK_STREAM;
     }
-  else if (strcasecmp(self->super.transport, "tls") == 0)
+  else if (strcasecmp(self->super.socket_options->transport, "tls") == 0)
     {
       static gboolean msg_tls_source_port_warning = FALSE;
 
@@ -178,11 +178,11 @@ afinet_sd_apply_transport(AFSocketSourceDriver *s)
         }
       self->super.require_tls = TRUE;
       self->super.socket_options->type = SOCK_STREAM;
-      self->super.logproto_name = "framed";
+      self->super.socket_options->logproto_name = "framed";
     }
   else
     {
-      self->super.logproto_name = self->super.transport;
+      self->super.socket_options->logproto_name = self->super.socket_options->transport;
       self->super.socket_options->type = SOCK_STREAM;
     }
 

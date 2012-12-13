@@ -53,13 +53,11 @@ struct _AFSocketSourceDriver
   TLSContext *tls_context;
 #endif
   GSockAddr *bind_addr;
-  gchar *transport;
-  gchar *logproto_name;
   gint max_connections;
   gint num_connections;
   gint listen_backlog;
   GList *connections;
-  SocketOptions *socket_options;
+  AFSocketOptions *socket_options;
 
 
   /*
@@ -110,7 +108,7 @@ afsocket_sd_apply_transport(AFSocketSourceDriver *s)
 gboolean afsocket_sd_init(LogPipe *s);
 gboolean afsocket_sd_deinit(LogPipe *s);
 
-void afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *sock_options, gint family, gint sock_type);
+void afsocket_sd_init_instance(AFSocketSourceDriver *self, AFSocketOptions *sock_options, gint family, gint sock_type);
 void afsocket_sd_free(LogPipe *self);
 
 #endif

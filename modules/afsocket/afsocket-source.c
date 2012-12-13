@@ -110,7 +110,7 @@ afsocket_sc_stats_instance(AFSocketSourceConnection *self)
       gchar peer_addr[MAX_SOCKADDR_STRING];
 
       g_sockaddr_format(self->peer_addr, peer_addr, sizeof(peer_addr), GSA_ADDRESS_ONLY);
-      g_snprintf(buf, sizeof(buf), "%s,%s", self->owner->transport, peer_addr);
+      g_snprintf(buf, sizeof(buf), "%s,%s", self->owner->socket_options->transport, peer_addr);
     }
   return buf;
 }
@@ -237,9 +237,9 @@ afsocket_sd_set_transport(LogDriver *s, const gchar *transport)
 {
   AFSocketSourceDriver *self = (AFSocketSourceDriver *) s;
 
-  if (self->transport)
-    g_free(self->transport);
-  self->transport = g_strdup(transport);
+  if (self->socket_options->transport)
+    g_free(self->socket_options->transport);
+  self->socket_options->transport = g_strdup(transport);
 }
 
 void
@@ -501,16 +501,16 @@ afsocket_sd_init(LogPipe *s)
   if (!afsocket_sd_apply_transport(self))
     return FALSE;
 
-  self->proto_factory = log_proto_server_get_factory(cfg, self->logproto_name);
+  self->proto_factory = log_proto_server_get_factory(cfg, self->socket_options->logproto_name);
   if (!self->proto_factory)
     {
       msg_error("Unknown value specified in the transport() option, no such LogProto plugin found",
-                evt_tag_str("transport", self->logproto_name),
+                evt_tag_str("transport", self->socket_options->logproto_name),
                 NULL);
       return FALSE;
     }
 
-  g_assert(self->transport);
+  g_assert(self->socket_options->transport);
   g_assert(self->bind_addr);
 
   if (self->socket_options->type == SOCK_STREAM && !self->window_size_initialized)
@@ -703,9 +703,10 @@ afsocket_sd_free(LogPipe *s)
   AFSocketSourceDriver *self = (AFSocketSourceDriver *) s;
 
   log_reader_options_destroy(&self->reader_options);
+  afsocket_options_free(self->socket_options);
   g_sockaddr_unref(self->bind_addr);
   self->bind_addr = NULL;
-  g_free(self->transport);
+  g_free(self->socket_options->transport);
 #if BUILD_WITH_SSL
   if(self->tls_context)
     {
@@ -716,7 +717,7 @@ afsocket_sd_free(LogPipe *s)
 }
 
 void
-afsocket_sd_init_instance(AFSocketSourceDriver *self, SocketOptions *socket_options, gint family, gint sock_type)
+afsocket_sd_init_instance(AFSocketSourceDriver *self, AFSocketOptions *socket_options, gint family, gint sock_type)
 {
   log_src_driver_init_instance(&self->super);
 

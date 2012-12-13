@@ -29,7 +29,7 @@
 typedef struct _AFUnixDestDriver
 {
   AFSocketDestDriver super;
-  SocketOptions unix_socket_options;
+  AFSocketOptions unix_socket_options;
   gchar *filename;
 } AFUnixDestDriver;
 
