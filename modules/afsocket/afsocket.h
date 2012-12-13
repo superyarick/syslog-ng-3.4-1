@@ -64,4 +64,10 @@ gboolean afsocket_options_apply_transport_method(AFSocketOptions *self);
 void afsocket_options_init(AFSocketOptions *self);
 void afsocket_options_free(AFSocketOptions *self);
 
+static inline gboolean
+afsocket_apply_transport(AFSocketOptions *self)
+{
+  return self->apply_transport(self);
+}
+
 #endif
