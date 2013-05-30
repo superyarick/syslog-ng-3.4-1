@@ -3,7 +3,7 @@ cd ../
 
 GCDATA="`find . -name *.gcda 2>/dev/null`"
 if [ -z "$GCDATA" ]; then
-    echo "syslog-ng was not compiled with coverage information, unable to collect them"
+    echo "syslog-ng-3.4.1 was not compiled with coverage information, unable to collect them"
     exit 0
 fi
 for i in $GCDATA; do
